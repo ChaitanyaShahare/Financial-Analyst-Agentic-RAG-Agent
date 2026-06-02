@@ -1,0 +1,101 @@
+
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+.venv_new/
+*.pem
+*.key
+*.crt
+credentials.json
+aws-credentials
+**/secrets/
+*.pem
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+.virtual_documents/
+.jupyter/
+
+# Local data / scratch (generated at runtime)
+chroma/
+chroma_db/
+faiss_index/
+banking_faiss_index/
+*.index
+chat_data.json
+local_storage/
+artifacts/
+runs/
+logs/
+*.log
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Internal program-management materials (NOT for trainees)
+.quiz/
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Build / tooling artifacts
+output/
+BUILD_LOG.md
+
+
+# other instructor-only folders
+.quiz/
+BUILD_STATUS.md

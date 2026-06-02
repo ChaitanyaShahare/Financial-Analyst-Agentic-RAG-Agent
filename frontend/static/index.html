@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Analyst Agentic RAG Agent</title>
+    <link rel="stylesheet" href="/templates/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>💼 Financial Analyst Agent</h1>
+                <p class="subtitle">ReAct Agent + Vector RAG + SQL Database + Live Web Search</p>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>💡 Quick Actions</h3>
+                    <button class="btn btn-quick" onclick="quickQuery('Client CLT-001 portfolio')">
+                        View Portfolio
+                    </button>
+                    <button class="btn btn-quick" onclick="quickQuery('IT sector analysis')">
+                        Sector Analysis
+                    </button>
+                    <button class="btn btn-quick" onclick="quickQuery('Check concentration policy')">
+                        Policy Check
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>📊 Clients</h3>
+                    <div id="clientsList" class="clients-list">
+                        <p class="loading">Loading clients...</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>⚙️ Settings</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoScroll" checked>
+                        Auto-scroll responses
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showReasoning" checked>
+                        Show reasoning chain
+                    </label>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Chat History -->
+                <div class="chat-container">
+                    <div id="chatHistory" class="chat-history">
+                        <div class="welcome-message">
+                            <h2>👋 Welcome to Financial Analyst Agent</h2>
+                            <p>Ask questions about client portfolios, market conditions, policy compliance, and more.</p>
+                            <div class="example-queries">
+                                <p><strong>Example queries:</strong></p>
+                                <ul>
+                                    <li>"Prepare a quarterly briefing for Client CLT-001"</li>
+                                    <li>"Compare IT sector exposure between CLT-001 and CLT-002"</li>
+                                    <li>"Check if CLT-003 can increase Adani position"</li>
+                                    <li>"Sector outlook with latest market news"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="input-section">
+                    <div class="input-wrapper">
+                        <textarea
+                            id="queryInput"
+                            class="query-input"
+                            placeholder="Ask your financial question here... (Press Ctrl+Enter to send)"
+                            rows="3"
+                        ></textarea>
+                        <div class="input-controls">
+                            <button id="sendBtn" class="btn btn-primary" onclick="submitQuery()">
+                                <span>Send</span>
+                                <span class="shortcut">⌘↵</span>
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearChat()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="status" class="status-bar"></div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Meridian Wealth Partners | Financial Analyst Agent v1.0 | Powered by LangChain & LangGraph</p>
+        </footer>
+    </div>
+
+    <!-- Modal for detailed response -->
+    <div id="responseModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/templates/main.js"></script>
+</body>
+</html>
