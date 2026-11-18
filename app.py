@@ -24,7 +24,7 @@ print(f"   File exists: {env_path.exists()}")
 
 from fastapi import FastAPI, WebSocket, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -62,14 +62,14 @@ async def startup_event():
     
     # Get database path for debugging
     print(f"\n📁 Database Path Check:")
-    db_path = Path(__file__).parent / "data" / "meridain_wealth.db"
+    db_path = db_queries.DB_PATH  # fixed: was a misspelt path ("meridain"), so this check always said "No"
     print(f"   Looking for: {db_path}")
     print(f"   Exists: {'✅ Yes' if db_path.exists() else '❌ No'}")
     
     # Verify database
     print("\n🗄️  Database Verification:")
     if not db_queries.verify_database():
-        print("⚠️  Warning: Database not found or incomplete. Ensure meridain_wealth.db exists.")
+        print("⚠️  Warning: Database not found or incomplete. Ensure data/meridian_wealth.db exists.")
     else:
         print("✅ Database verified")
     
@@ -110,6 +110,9 @@ async def root():
     return "<h1>Financial Analyst Agent - No index.html found</h1>"
 
 
+# CONCEPT: Observability - health check
+# A cheap endpoint that monitoring tools (or a person) can call to see whether
+# each part of the agent (database, RAG index, LLM) came up correctly.
 @app.get("/health")
 async def health():
     """
@@ -190,7 +193,7 @@ async def agent_info():
             "real_time_market_intelligence"
         ],
         "data_sources": [
-            "SQLite Database (meridain_wealth.db)",
+            "SQLite Database (meridian_wealth.db)",
             "FAISS Vector Store (policy documents)",
             "Tavily API (web search)"
         ],
@@ -218,17 +221,23 @@ async def main_chat(request: schemas.QueryRequest):
         AgentResponse with analysis, tool usage, and reasoning chain
     """
     try:
-        # Invoke agent with the query
-        result = agent.invoke_agent(request.query)
-        
+        # Invoke agent with the query (session_id is optional: when sent, the
+        # agent remembers earlier turns of the same session - short-term memory)
+        result = agent.invoke_agent(request.query, session_id=request.session_id)
+
         # Extract final response
         final_msg = result["messages"][-1]
         response_text = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
-        
-        # Extract tool usage and reasoning
-        tool_messages = [m for m in result["messages"] if hasattr(m, 'name')]
-        tools_used = [m.name for m in tool_messages]
-        
+
+        # CONCEPT: Observability - return the agent's trace with the answer
+        # tools_used and reasoning_steps let the caller see which tools ran and
+        # with which arguments, so an answer can be checked, not just trusted.
+        # Fixed: this used to keep every message with a `name` attribute. All
+        # LangChain messages have one (usually None), so the list contained None
+        # values and AgentResponse validation failed with HTTP 500 on every
+        # successful run. Now only real tool results (ToolMessages) are counted.
+        tools_used = agent.tools_used(result)
+
         reasoning_steps = []
         for msg in result["messages"]:
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
@@ -264,48 +273,9 @@ async def query_agent(request: schemas.QueryRequest):
     return await main_chat(request)
 
 
-@app.post("/api/query")
-async def query_agent(request: schemas.QueryRequest):
-    """
-    Submit a query to the financial analyst agent.
-    
-    Args:
-        request: QueryRequest containing the user query
-        
-    Returns:
-        AgentResponse with the analysis and tool usage
-    """
-    try:
-        # Invoke agent
-        result = agent.invoke_agent(request.query)
-        
-        # Extract final response
-        final_msg = result["messages"][-1]
-        response_text = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
-        
-        # Extract tool usage
-        tool_messages = [m for m in result["messages"] if hasattr(m, 'name')]
-        tools_used = [m.name for m in tool_messages]
-        
-        # Extract reasoning (tool calls)
-        reasoning_steps = []
-        for msg in result["messages"]:
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    reasoning_steps.append(f"Called {tc['name']} with args: {tc.get('args', {})}")
-        
-        response = schemas.AgentResponse(
-            query=request.query,
-            response=response_text,
-            tools_used=tools_used,
-            reasoning_steps=reasoning_steps,
-            sources=[]  # Can be enhanced to extract source documents
-        )
-        
-        return response
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+# Removed: a second, duplicate `@app.post("/api/query")` handler used to sit here.
+# FastAPI always routes to the FIRST matching handler (the one above), so the
+# duplicate never ran. Behaviour is unchanged.
 
 
 @app.get("/api/clients")
@@ -374,7 +344,12 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 # Invoke agent
                 result = agent.invoke_agent(query)
-                
+
+                # CONCEPT: Observability - stream the trace to the user
+                # Each decision (tool_call) and observation (tool_result) is sent
+                # to the browser, so the user watches the operating loop step by
+                # step. Note: the events are sent after the whole run finishes,
+                # not live while the agent is thinking.
                 # Stream tool calls and results
                 for i, msg in enumerate(result["messages"]):
                     msg_type = type(msg).__name__
@@ -422,11 +397,16 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
     """Global exception handler."""
-    return {
-        "error": "Internal server error",
-        "detail": str(exc),
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    # Fixed: exception handlers must return a Response object. Returning a plain
+    # dict made the handler itself crash, so clients got a bare error instead of this JSON.
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": str(exc),
+            "timestamp": datetime.utcnow().isoformat()
+        },
+    )
 
 
 if __name__ == "__main__":

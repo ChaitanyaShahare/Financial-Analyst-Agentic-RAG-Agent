@@ -2,7 +2,7 @@
 
 ## 🎯 What's Been Done
 
-Your Jupyter notebook has been **successfully refactored** into a **production-ready Python project** with:
+This is a **production-ready Python project** with:
 - ✅ Modular backend architecture (FastAPI + LangChain)
 - ✅ Professional frontend (HTML5 + vanilla JavaScript)
 - ✅ RESTful + WebSocket APIs
@@ -29,7 +29,6 @@ deployment/
 │       └── main.js          # WebSocket client
 ├── app.py                    # FastAPI application
 ├── data/                     # Database + PDFs
-├── notebook/                 # Original notebook
 └── REFACTORING_COMPLETE.md  # Full documentation
 ```
 
@@ -205,7 +204,7 @@ curl -X POST http://localhost:8000/api/query \
 # Verify database exists
 ls -la data/meridain_wealth.db
 
-# If missing, check the original notebook for data setup
+# If missing, restore data/meridian_wealth.db from git
 ```
 
 ### Issue: "Policy documents not found"

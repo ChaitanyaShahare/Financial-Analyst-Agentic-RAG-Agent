@@ -479,18 +479,18 @@ Return to agent
 
 ## Module Mapping
 
-### Notebook → Refactored Code Mapping
+### Responsibility → Code Mapping
 
-| Original Notebook Cell(s) | Refactored To | Function/Class Names |
+| Area | Refactored To | Function/Class Names |
 |---|---|---|
-| Cells 2-6 | app.py startup | N/A (environment setup) |
-| Cells 9-24 | Src/rag_pipeline.py | `RAGPipeline`, `load_documents()`, `chunk_documents()`, `build_vectorstore()`, `create_retriever()`, `setup_complete_pipeline()`, `initialize_rag_pipeline()` |
-| Cell 11 | Src/db_queries.py | `verify_database()`, database initialization |
-| Cell 28 | Src/db_queries.py | `query_db()`, `get_client_portfolio()`, `search_market_data()` |
-| Cells 30-31 | Src/agent.py | `portfolio_lookup()`, `market_data_search()`, `calculate_metrics()`, `policy_retriever_tool()`, `web_search()` (tools) |
-| Cell 31 | Src/agent.py | Tool registry and definitions |
-| Cell 33 | Src/agent.py | `create_financial_agent()`, system prompt, `initialize_agent_components()` |
-| Cells 34-50 | app.py, Src/agent.py | `invoke_agent()`, testing and visualization |
+| Environment setup | app.py startup | N/A (environment setup) |
+| RAG pipeline | Src/rag_pipeline.py | `RAGPipeline`, `load_documents()`, `chunk_documents()`, `build_vectorstore()`, `create_retriever()`, `setup_complete_pipeline()`, `initialize_rag_pipeline()` |
+| Database check | Src/db_queries.py | `verify_database()`, database initialization |
+| Database queries | Src/db_queries.py | `query_db()`, `get_client_portfolio()`, `search_market_data()` |
+| Agent tools | Src/agent.py | `portfolio_lookup()`, `market_data_search()`, `calculate_metrics()`, `policy_retriever_tool()`, `web_search()` (tools) |
+| Tool registry | Src/agent.py | Tool registry and definitions |
+| Agent creation | Src/agent.py | `create_financial_agent()`, system prompt, `initialize_agent_components()` |
+| Invocation and testing | app.py, Src/agent.py | `invoke_agent()`, testing and visualization |
 | N/A | app.py | `/health`, `/agent-info`, `/main-chat` endpoints |
 
 ---
@@ -499,7 +499,7 @@ Return to agent
 
 ### ✅ All Original Function Names Retained
 
-This section verifies that every function and class name from the original notebook is **exactly preserved** in the refactored codebase.
+This section verifies that every original function and class name is **exactly preserved** in the refactored codebase.
 
 #### **Agent Functions** (Src/agent.py)
 
@@ -569,14 +569,14 @@ This section verifies that every function and class name from the original noteb
 **Total Function Names Preserved**: 27  
 **Preservation Rate**: **100%**  
 
-**Conclusion**: All original function and class names from the notebook are **exactly retained** in the split file structure. No renaming, no loss of functionality.
+**Conclusion**: All original function and class names are **exactly retained** in the split file structure. No renaming, no loss of functionality.
 
 ---
 
 ## Agent Components with Original Names
 
 ### 1. Financial Analyst Agent
-- **Name**: `Financial Analyst Agentic RAG Agent` (from notebook)
+- **Name**: `Financial Analyst Agentic RAG Agent`
 - **Type**: ReAct Agent
 - **Framework**: LangChain
 - **LLM**: GPT-5-mini
@@ -586,35 +586,35 @@ This section verifies that every function and class name from the original noteb
 
 #### Tool 1: `portfolio_lookup()`
 - **Original Name**: ✅ PRESERVED
-- **Source**: Src/agent.py (cell 30)
+- **Source**: Src/agent.py
 - **Purpose**: Portfolio analysis for clients
 - **Input**: `client_id: str`
 - **Returns**: JSON with portfolio details
 
 #### Tool 2: `market_data_search()`
 - **Original Name**: ✅ PRESERVED
-- **Source**: Src/agent.py (cell 30)
+- **Source**: Src/agent.py
 - **Purpose**: Market research and stock analysis
 - **Input**: `query: str`
 - **Returns**: JSON with market data
 
 #### Tool 3: `calculate_metrics()`
 - **Original Name**: ✅ PRESERVED
-- **Source**: Src/agent.py (cell 30)
+- **Source**: Src/agent.py
 - **Purpose**: Financial calculations
 - **Input**: `expression: str`
 - **Returns**: Calculation results
 
 #### Tool 4: `policy_retriever_tool()`
 - **Original Name**: ✅ PRESERVED (as `policy_retriever_tool()`)
-- **Source**: Src/agent.py (cell 30)
+- **Source**: Src/agent.py
 - **Purpose**: RAG search over policy PDFs
 - **Input**: `query: str`
 - **Returns**: Policy document excerpts
 
 #### Tool 5: `web_search()` (Tavily)
 - **Original Name**: ✅ PRESERVED
-- **Source**: Src/agent.py (cell 31)
+- **Source**: Src/agent.py
 - **Purpose**: Live web search for market news
 - **Input**: Query from LangChain
 - **Returns**: Search results from Tavily API

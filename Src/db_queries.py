@@ -7,7 +7,7 @@ This module provides SQLite database operations for:
 - Financial metrics retrieval
 - Holdings and transactions lookup
 
-Database: meridain_wealth.db
+Database: data/meridian_wealth.db
 Tables: clients, holdings, market_data
 """
 
@@ -35,6 +35,13 @@ def query_db(sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    # CONCEPT: Safety - parameterised SQL
+    # Values chosen by the LLM (like a client id) are passed separately in
+    # `params` and filled in by SQLite at the "?" placeholders, never pasted into
+    # the SQL text. This blocks SQL injection, even if the model is tricked into
+    # sending something like "CLT-001'; DROP TABLE clients; --".
+    # The tools also only ever run fixed SELECT queries: the agent cannot write
+    # its own SQL or change data.
     cursor.execute(sql, params)
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()

@@ -25,6 +25,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langchain_tavily import TavilySearch
+from langgraph.checkpoint.memory import InMemorySaver
 
 from . import db_queries
 from . import schemas
@@ -36,12 +37,33 @@ llm = None
 policy_retriever = None
 web_search = None
 
+# CONCEPT: Safety limit (step budget)
+# An agent decides for itself how many times to call tools. A confused model could
+# loop forever (and run up API cost). LangGraph counts every "super-step" (one model
+# turn or one batch of tool calls) and stops with GraphRecursionError when this
+# budget is used up. 25 matches LangGraph's long-standing default and leaves room
+# for a full client briefing (about 5-8 tool rounds = 11-17 steps).
+MAX_AGENT_STEPS = 25
+
+# CONCEPT: Short-term memory (conversation memory)
+# On its own, each call to the agent starts with an empty message list, so it
+# forgets everything between questions. A "checkpointer" saves the message list
+# after each step under a thread id. Calling again with the same thread id
+# reloads that list, so the agent remembers earlier turns in the same session.
+# InMemorySaver keeps this in RAM only: it is lost when the server restarts.
+# It is used only when a caller passes a session_id (see invoke_agent).
+_conversation_memory = InMemorySaver()
+_memory_agent = None
+
 
 def initialize_agent_components():
     """Initialize all agent components (LLM, tools, retriever)."""
     global embedding_model, llm, policy_retriever, web_search
     
-    # Validate API keys
+    # CONCEPT: Safety - fail fast on missing configuration
+    # Check secrets up front and stop with a clear message, rather than letting
+    # the agent fail halfway through a user's question. Only presence is printed,
+    # never the key itself.
     openai_key = os.getenv("OPENAI_API_KEY")
     tavily_key = os.getenv("TAVILY_API_KEY")
     
@@ -65,6 +87,10 @@ def initialize_agent_components():
     print("✅ LLM initialized")
     
     # Initialize RAG pipeline
+    # Assumption: the path "policy_documents" is relative to the folder you start
+    # the server from, so run the app from the project root.
+    # CONCEPT: Graceful degradation - if RAG fails, the agent still starts and
+    # policy_retriever_tool reports that policy search is unavailable.
     try:
         _, policy_retriever, _ = initialize_rag_pipeline(data="policy_documents")
         print("✅ RAG pipeline initialized")
@@ -78,7 +104,15 @@ def initialize_agent_components():
     print("✅ Web search initialized")
 
 
-# Tool Definitions (from notebook cells 30-31)
+# Tool Definitions
+#
+# CONCEPT: Tool use / function calling
+# A "tool" is an ordinary Python function the LLM is allowed to ask us to run.
+# The @tool decorator turns the function name, its type hints and its docstring
+# into a description (a JSON schema) that is sent to the LLM. The LLM never runs
+# code itself: it replies "please call portfolio_lookup with client_id='CLT-001'",
+# LangChain runs the function, and the returned string goes back to the LLM.
+# The docstring matters: it is how the model decides WHEN to use each tool.
 
 @tool
 def portfolio_lookup(client_id: str) -> str:
@@ -88,6 +122,9 @@ def portfolio_lookup(client_id: str) -> str:
     
     portfolio = db_queries.get_client_portfolio(client_id.upper())
     if not portfolio:
+        # CONCEPT: Observation that helps the agent recover
+        # Instead of crashing, the tool returns a helpful message. The LLM reads
+        # it as an observation and can retry with a valid client id.
         available = db_queries.get_all_clients()
         client_ids = [r["client_id"] for r in available]
         return f"Client {client_id} not found. Available: {', '.join(client_ids)}"
@@ -161,6 +198,10 @@ def calculate_metrics(expression: str) -> str:
     """Perform financial calculations: returns, percentages, allocations, comparisons.
     Input: describe the calculation, e.g. 'return on 596000 vs cost 430000'
     or 'percentage of 350000 out of 2530000' or 'compare 18.5 vs 12.3'."""
+    # CONCEPT: Deterministic tool for maths
+    # LLMs are unreliable at arithmetic. Pushing calculations into plain Python
+    # gives exact, repeatable numbers. Note: this is simple pattern matching on
+    # keywords, not a general calculator, and it never uses eval() (safer).
     try:
         numbers = [float(x.replace(',', '')) for x in re.findall(r'[\d,]+\.?\d*', expression)]
 
@@ -201,7 +242,12 @@ def policy_retriever_tool(query: str) -> str:
     
     if policy_retriever is None:
         return "Policy retriever not available. RAG pipeline failed to initialize."
-    
+
+    # CONCEPT: RAG retrieval + grounding
+    # The retriever turns the query into an embedding and returns the 4 most
+    # similar policy chunks (built in Src/rag_pipeline.py). Each chunk is labelled
+    # with its PDF name and page so the LLM can cite its source. This "grounds"
+    # the answer in real documents instead of the model's memory.
     try:
         docs = policy_retriever.invoke(query)
         results = []
@@ -214,17 +260,26 @@ def policy_retriever_tool(query: str) -> str:
         return f"Policy search error: {str(e)}"
 
 
-def create_financial_agent():
+def create_financial_agent(checkpointer=None):
     """
     Create and return the ReAct financial analyst agent.
-    
+
+    Args:
+        checkpointer: Optional LangGraph checkpointer. Pass one to give the agent
+            short-term (conversation) memory. None keeps the original stateless behaviour.
+
     Returns:
         Configured agent executor
     """
     if llm is None:
         raise RuntimeError("Agent not initialized. Call initialize_agent_components() first.")
-    
-    # System prompt from notebook cell 33
+
+    # CONCEPT: System prompt = role, plan template and guardrails
+    # The system prompt is standing instructions sent before every user message.
+    # It gives the agent a role, lists its tools, and sets rules (guardrails) such
+    # as "never guess policy rules" and "say so if data is missing". The last
+    # guideline is a simple plan template for briefings. These are soft guardrails:
+    # the model is asked to follow them, but nothing in code enforces them.
     SYSTEM_PROMPT = """You are a senior financial analyst at Meridian Wealth Partners, a SEBI-registered wealth
 management firm managing Rs 2,000 Crore in assets across 800 high-net-worth Indian clients.
 
@@ -250,35 +305,100 @@ GUIDELINES:
 """
     
     tools = [portfolio_lookup, market_data_search, calculate_metrics, policy_retriever_tool, web_search]
-    
+
+    # CONCEPT: Core operating loop (ReAct: reason -> act -> observe -> repeat)
+    # create_agent builds a small LangGraph graph with two nodes:
+    #   "model" node : the LLM reads all messages so far and either answers, or
+    #                  asks for one or more tool calls (REASON).
+    #   "tools" node : runs the requested tools (ACT) and appends their results
+    #                  as ToolMessages (OBSERVE).
+    # The graph loops model -> tools -> model until the LLM replies without any
+    # tool call; that reply is the final answer. The loop itself lives inside
+    # LangChain/LangGraph, so you will not find a hand-written while-loop here.
+    # Note: the model is given as the string "openai:gpt-5-mini", so the `llm`
+    # object created in initialize_agent_components() is not used by the agent;
+    # it only acts as an "initialised" flag (see the check above).
     agent = create_agent(
         model="openai:gpt-5-mini",
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        checkpointer=checkpointer,
     )
-    
+
     return agent
 
 
-def invoke_agent(query: str, agent=None) -> Dict[str, Any]:
+def invoke_agent(query: str, agent=None, session_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Invoke the agent with a query.
-    
+
     Args:
         query: User query string
         agent: Agent instance (if None, creates new one)
-        
+        session_id: Optional conversation id. When given, the agent remembers
+            earlier questions asked with the same id (short-term memory).
+            When None (the default), every call is independent, as before.
+
     Returns:
         Agent response with messages and tool usage
     """
-    if agent is None:
+    global _memory_agent
+
+    # CONCEPT: Safety limit - see MAX_AGENT_STEPS at the top of this file.
+    config: Dict[str, Any] = {"recursion_limit": MAX_AGENT_STEPS}
+
+    if session_id:
+        # CONCEPT: Short-term memory - reuse one agent that has a checkpointer,
+        # and tell it which conversation (thread) this message belongs to.
+        if agent is None:
+            if _memory_agent is None:
+                _memory_agent = create_financial_agent(checkpointer=_conversation_memory)
+            agent = _memory_agent
+        config["configurable"] = {"thread_id": session_id}
+    elif agent is None:
         agent = create_financial_agent()
-    
-    result = agent.invoke({
-        "messages": [
-            {"role": "user", "content": query}
-        ]
-    })
-    
+
+    # CONCEPT: Perceive - the user's question enters the loop as a message.
+    result = agent.invoke(
+        {
+            "messages": [
+                {"role": "user", "content": query}
+            ]
+        },
+        config=config,
+    )
+
     return result
+
+
+# CONCEPT: Observability (tracing the agent's steps)
+# The result of agent.invoke() holds every message from the run, in order:
+# HumanMessage (the question) -> AIMessage with tool_calls (the decision) ->
+# ToolMessage (the observation) -> ... -> AIMessage without tool_calls (answer).
+# Printing them is the simplest way to see WHY the agent answered as it did.
+def format_agent_trace(result: Dict[str, Any], preview_chars: int = 200) -> str:
+    """Return a readable, step-by-step trace of one agent run."""
+    lines = ["AGENT TRACE - full message history", "=" * 80]
+    for i, msg in enumerate(result["messages"]):
+        msg_type = type(msg).__name__
+        if msg_type == "HumanMessage":
+            lines.append(f"Step {i} | USER: {str(msg.content)[:preview_chars]}")
+        elif msg_type == "AIMessage":
+            if getattr(msg, "tool_calls", None):
+                lines.append(f"Step {i} | AGENT -> calls {len(msg.tool_calls)} tool(s):")
+                for tc in msg.tool_calls:
+                    args_str = json.dumps(tc["args"], ensure_ascii=False)[:120]
+                    lines.append(f"    {tc['name']}({args_str})")
+            else:
+                lines.append(f"Step {i} | FINAL ANSWER ({len(str(msg.content))} chars)")
+        elif msg_type == "ToolMessage":
+            lines.append(f"Step {i} | TOOL RESULT from {msg.name}: {str(msg.content)[:preview_chars]}")
+    lines.append("=" * 80)
+    lines.append(f"Tools used: {tools_used(result)}")
+    return "\n".join(lines)
+
+
+def tools_used(result: Dict[str, Any]) -> List[str]:
+    """Names of the tools that actually ran during one agent run, in order."""
+    return [m.name for m in result["messages"] if type(m).__name__ == "ToolMessage"]
 

@@ -15,10 +15,17 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
+# CONCEPT: Safety - input validation
+# FastAPI checks every request body against this Pydantic model before our code
+# runs. A request without a "query" string is rejected with HTTP 422, so bad
+# input never reaches the agent.
 class QueryRequest(BaseModel):
     """User query request to the agent."""
     query: str = Field(..., description="The user's financial analysis query")
+    # Note: client_id is accepted but not used by the API; put the id in the query text.
     client_id: Optional[str] = Field(None, description="Client ID if query is client-specific")
+    # CONCEPT: Short-term memory - send the same session_id on each request to
+    # let the agent remember earlier turns (see Src/agent.py invoke_agent).
     session_id: Optional[str] = Field(None, description="Session ID for conversation tracking")
 
 

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The Jupyter notebook **`Lab_6.4_Financial_Analyst_Agent.ipynb`** has been successfully refactored into a **production-ready, modular Python project** with **FastAPI backend** and **HTML5 frontend**.
+The Financial Analyst Agent has been refactored into a **production-ready, modular Python project** with **FastAPI backend** and **HTML5 frontend**.
 
 ---
 
@@ -25,9 +25,6 @@ root/
 │   ├── policy_Document.zip       # 5 investment policy PDFs
 │   └── meridain_wealth.db        # SQLite client/holdings/market data
 │
-├── notebook/                     # Original notebook (preserved)
-│   └── Lab_6.4_Financial_Analyst_Agent.ipynb
-│
 ├── frontend/                     # Web UI (stateless, vanilla JS)
 │   ├── static/
 │   │   └── index.html            # ✅ Main UI (chat interface)
@@ -40,7 +37,6 @@ root/
 ├── .env.example                  # Environment variables template
 ├── .gitignore                    # Git ignore file
 ├── README.md                     # Project documentation
-├── extract_notebook.py           # Extraction helper script
 └── scaffold.py                   # Project generator script
 ```
 
@@ -63,29 +59,29 @@ root/
 
 ---
 
-## 🔄 Notebook Extraction Mapping
+## 🔄 Code Mapping
 
-### Cell Groups → Files
+### Responsibilities → Files
 
-| Notebook Cells | Target File | Responsibility |
+| Area | Target File | Responsibility |
 |---|---|---|
-| 2, 4, 6 | imports + app.py startup | Package setup, LLM init |
-| 9, 13-24 | Src/rag_pipeline.py | PDF loading, chunking, FAISS |
-| 11, 28 | Src/db_queries.py | SQLite queries, portfolio lookup |
-| 30 | Src/agent.py | Tool definitions (5 tools) |
-| 31 | app.py | Tool registry, agent creation |
-| 33 | Src/agent.py | System prompt, agent setup |
-| 34-50 | app.py | Testing, visualization, summaries |
+| Setup | imports + app.py startup | Package setup, LLM init |
+| RAG | Src/rag_pipeline.py | PDF loading, chunking, FAISS |
+| Database | Src/db_queries.py | SQLite queries, portfolio lookup |
+| Tools | Src/agent.py | Tool definitions (5 tools) |
+| Registry | app.py | Tool registry, agent creation |
+| Prompt | Src/agent.py | System prompt, agent setup |
+| Testing | app.py | Testing, visualization, summaries |
 
 ### Code Extraction Details
 
 #### ✅ Database Functions (Src/db_queries.py)
-- Extracted from **Cell 28**: `query_db()`, `get_client_portfolio()`, `search_market_data()`
+- Core queries: `query_db()`, `get_client_portfolio()`, `search_market_data()`
 - Added helpers: `get_all_clients()`, `get_sector_distribution()`, `get_holding_concentration()`
 - Relative path handling for SQLite database
 
 #### ✅ RAG Pipeline (Src/rag_pipeline.py)
-- Extracted from **Cells 13-24**: PDF loading, chunking, embedding, FAISS indexing
+- Core steps: PDF loading, chunking, embedding, FAISS indexing
 - `RAGPipeline` class for orchestration
 - `initialize_rag_pipeline()` helper for one-call setup
 - Configurable chunk size and overlap
@@ -404,7 +400,7 @@ def test_api_query():
 
 ## ✅ Verification Checklist
 
-- ✅ All notebook code extracted and refactored
+- ✅ All code refactored into modules
 - ✅ Modular structure following best practices
 - ✅ Relative imports and path handling
 - ✅ Error handling and validation

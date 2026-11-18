@@ -362,7 +362,6 @@ def scaffold_project():
     create_directory("Src")
     create_directory("vectordb")
     create_directory("data")
-    create_directory("notebook")
     create_directory("frontend/templates")
     create_directory("frontend/static")
     
@@ -386,7 +385,6 @@ def scaffold_project():
     
     # Create data directory placeholders
     create_file("data/.gitkeep", "# Data directory - contains policy_document.zip and meridain_wealth.db\n")
-    create_file("notebook/.gitkeep", "# Notebook directory - for Jupyter notebooks and experimentation\n")
     
     # Create configuration files
     requirements_content = """# ============================================================================
@@ -509,7 +507,6 @@ root/
 ├── data/
 │   ├── policy_document.zip   # Financial documents
 │   └── meridain_wealth.db    # SQLite database
-├── notebook/                 # Jupyter notebooks
 ├── frontend/
 │   ├── templates/
 │   │   ├── style.css         # Styling
@@ -571,8 +568,6 @@ root/
 │   ├── .gitkeep
 │   ├── policy_document.zip (TODO: Add)
 │   └── meridain_wealth.db (TODO: Add)
-├── notebook/
-│   └── .gitkeep
 ├── frontend/
 │   ├── templates/
 │   │   ├── style.css

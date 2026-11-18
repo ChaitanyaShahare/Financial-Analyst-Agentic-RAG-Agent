@@ -3,8 +3,7 @@
 # =============================================================================
 # Python 3.11 or 3.12.
 # Install into a clean virtual environment: `pip install -r requirements.txt`
-# Per-lab !pip install cells are commented out by default; this file is the
-# single source of truth for the participant venv.
+# This file is the single source of truth for the participant venv.
 # -----------------------------------------------------------------------------
 
 # --- LLM SDKs (M1–M9) ---------------------------------------------------------
@@ -77,9 +76,3 @@ slowapi
 python-multipart
 python-json-logger
 gunicorn
-
-# --- Notebook runtime ---------------------------------------------------------
-jupyter>=1.0
-ipywidgets>=8.0
-ipykernel
-notebook

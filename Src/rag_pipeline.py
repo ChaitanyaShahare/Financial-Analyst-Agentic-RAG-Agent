@@ -47,6 +47,9 @@ class RAGPipeline:
         Returns:
             List of LangChain Document objects (one per page)
         """
+        # CONCEPT: RAG step 1 - Load
+        # PyPDFLoader returns one Document per PDF page. Each Document keeps
+        # metadata (source file path and page number) that is later used for citations.
         all_pages = []
         pdf_files = sorted([f for f in os.listdir(self.data) if f.endswith(".pdf")])
         
@@ -75,6 +78,12 @@ class RAGPipeline:
         Returns:
             List of chunked documents
         """
+        # CONCEPT: RAG step 2 - Chunk
+        # Whole pages are too long and too mixed in topic to search well, so they
+        # are cut into ~1000-character pieces. The 300-character overlap means a
+        # sentence cut at a boundary still appears whole in one of the two chunks.
+        # The splitter tries to cut at paragraph breaks first, then lines,
+        # then sentences, then words.
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -103,6 +112,12 @@ class RAGPipeline:
                 raise ValueError("No documents provided and no chunks cached. Call chunk_documents first.")
             documents = self.chunks
         
+        # CONCEPT: RAG step 3 - Embed and index
+        # An embedding model turns each chunk into a list of 1,536 numbers (a
+        # vector). Texts with similar meaning get vectors that are close together.
+        # FAISS stores the vectors in memory so the nearest ones can be found fast.
+        # Note: the index is rebuilt (and the embedding API is paid for) every time
+        # the server starts; it is not saved to disk.
         print(f"\n⏳ Embedding {len(documents)} chunks with {self.embedding_model.model}...")
         self.vectorstore = FAISS.from_documents(documents, self.embedding_model)
         
@@ -125,6 +140,9 @@ class RAGPipeline:
         if self.vectorstore is None:
             raise ValueError("Vectorstore not built. Call build_vectorstore first.")
         
+        # CONCEPT: RAG step 4 - Retrieve
+        # At question time the query is embedded too, and the k chunks whose
+        # vectors are closest to it are returned (similarity search).
         self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": k})
         print(f"   Retriever: top-{k} similarity search")
         
